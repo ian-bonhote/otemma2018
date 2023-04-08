@@ -197,39 +197,10 @@ otemma_species <- otemma_species %>%
   slice(-1:-2) %>% # remove 2 fist rows as they have the names
   set_names(otemma_species[1,]) %>% # rename the columns
   slice(1:100)
-
-# Species can be treated before joining for easiness
-otemma_species <- otemma_species %>%
-  # We'll be using "Dominance Numérique 1", but there can be many possibilities
-  mutate_all(~ case_when(
-                            is.na(.) ~ "0",
-                            . == "r" ~ "0.1",
-                            . == "+" ~ "0.5",
-                            . == "1" ~ "1",
-                            . == "2a" ~ "2",
-                            . == "2b" ~ "2.5"
-                          )
-                        ) %>% 
-  mutate_all(as.numeric) %>% 
-  slice(1:nrow(.))
 ```
 
 ```{r glimpse}
 otemma_species %>% glimpse()
-```
-
-```{r}
-#| echo: false
-otemma_species %>%
-  select_if(is.numeric) %>% 
-  gather() %>% 
-  ggplot(aes(y = value)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_boxplot() +
-  # xlab("Variable") +
-  # ylab("Value") +
-  ggtitle("Species variables") +
-  facet_wrap(~key, scales = "free_y", ncol = 10)
 ```
 
 ## Remove rows
@@ -241,4 +212,6 @@ otemma_geo <- otemma_geo %>% slice(rows_del)
 otemma_labo <- otemma_labo %>% slice(rows_del)
 otemma_soil <- otemma_soil %>% slice(rows_del)
 otemma_species <- otemma_species %>% slice(rows_del)
+
+save(otemma_geo, otemma_labo, otemma_soil, otemma_species, file='otemma.Rdata')
 ```
