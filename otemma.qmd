@@ -1,0 +1,244 @@
+---
+title: "Otemma Project"
+subtitle: "Which abiotic environmental parameters influence the vegetation ?"
+format: pdf
+editor: visual
+execute:
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Read-in, first glimpse and remove outliers/errors
+
+```{r libraries}
+#| echo: false
+#| output: false
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(stringr)
+library(ggcorrplot)
+library(vegan)
+```
+
+### Geospatial variables
+
+```{r read_in}
+otemma <- read_excel("./otemma2018.xlsx")
+
+geo_vars = c(4,5,6,8,10,11,14)
+
+otemma_geo <- otemma %>% 
+  slice(geo_vars) %>% # multiple data
+  t() %>% # transpose
+  as_tibble() # to df
+
+
+otemma_geo <- otemma_geo %>% 
+  slice(-1:-2) %>% # remove 2 fist rows as they have the names
+  set_names(otemma_geo[1,]) %>%  # rename the columns
+  as_tibble(.name_repair = "unique") %>%
+  slice(1:100)
+
+otemma_geo <- otemma_geo %>% 
+  mutate(
+    `altitude` = as.numeric(`altitude`),
+    `x` = as.numeric(`x`),
+    `y` = as.numeric(`y`),
+    `orient_deg`  = as.numeric(`orient_deg`),
+    `slope` = as.numeric(`slope`),
+    `dist_main_river` = as.numeric(`dist_main_river`),
+    `dist_close_river` = as.numeric(`dist_close_river`)
+    ) %>% 
+  suppressWarnings()
+```
+
+```{r glimpse}
+otemma_geo %>% glimpse()
+```
+
+```{r}
+#| echo: false
+
+rows_del <- c()
+rows_del <- append(rows_del, -67) # delete line 67 because area too small
+
+otemma_geo %>% 
+  select_if(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(y = value)) +
+  geom_boxplot(position = position_dodge(0.8)) +
+  geom_boxplot() +
+  # xlab("Variable") +
+  # ylab("Value") +
+  ggtitle("Geospatial variables (numeric)") +
+  facet_wrap(~key, scales = "free_y", ncol = 4)
+```
+
+### Laboratory analysis variables
+
+```{r read_in_labo}
+#| echo: false
+
+labo_vars <- c(18:20, 22:25, 27:29)
+
+otemma_labo <- otemma %>% 
+  slice(labo_vars) %>% # multiple data
+  t() %>% # transpose
+  as_tibble() # to df
+
+otemma_labo <- otemma_labo %>% 
+  slice(-1:-2) %>% # remove 2 fist rows as they have the names
+  set_names(otemma_labo[1,]) %>% # rename the columns
+  slice(1:100)
+
+otemma_labo <- otemma_labo %>% 
+  mutate(
+    `nitrogen` = as.numeric(`nitrogen`),
+    `carbon` = as.numeric(`carbon`),
+    `hydrogen` = as.numeric(`hydrogen`),
+    `mass_block` = as.numeric(`mass_block`),
+    `mass_coarse` = as.numeric(`mass_coarse`),
+    `mass_medium` = as.numeric(`mass_medium`),
+    `mass_fine` = as.numeric(`mass_fine`),
+    `granulo_sand` = as.numeric(`granulo_sand`),
+    `granulo_silt` = as.numeric(`granulo_silt`),
+    `granulo_clay`  = as.numeric(`granulo_clay`)
+    ) %>%
+  suppressWarnings()
+```
+
+```{r glimpse}
+otemma_labo %>% glimpse()
+```
+
+```{r}
+#| echo: false
+otemma_labo %>% 
+  select_if(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(y = value)) +
+  geom_boxplot(position = position_dodge(0.8)) +
+  geom_boxplot() +
+  # xlab("Variable") +
+  # ylab("Value") +
+  ggtitle("Laboratory variables (numeric)") +
+  facet_wrap(~key, scales = "free_y", ncol = 3)
+```
+
+### Soil cover variables
+
+```{r read_in_soil}
+#| echo: false
+
+soil_vars <- c(31:37, 39:44)
+
+otemma_soil <- otemma %>% 
+  slice(soil_vars) %>% # multiple data
+  t() %>% # transpose
+  as_tibble() # to df
+
+otemma_soil <- otemma_soil %>% 
+  slice(-1:-2) %>% # remove 2 fist rows as they have the names
+  set_names(otemma_soil[1,]) %>% # rename the columns
+  slice(1:100)
+
+otemma_soil <- otemma_soil %>% 
+  mutate(
+    `cover_vascular` = as.numeric(`cover_vascular`),
+    `cover_bryo` = as.numeric(`cover_bryo`),
+    `cover_lichen` = as.numeric(`cover_lichen`),
+    `cover_litter` = as.numeric(`cover_litter`),
+    `cover_fine` = as.numeric(`cover_fine`),
+    `cover_gravel` = as.numeric(`cover_gravel`),
+    `cover_block` = as.numeric(`cover_block`),
+    `cover_height` = as.numeric(`cover_height`)
+    ) %>%
+  suppressWarnings()
+
+```
+
+```{r glimpse}
+otemma_soil %>% glimpse()
+```
+
+```{r}
+#| echo: false
+otemma_soil %>%
+  select_if(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(y = value)) +
+  geom_boxplot(position = position_dodge(0.8)) +
+  geom_boxplot() +
+  # xlab("Variable") +
+  # ylab("Value") +
+  ggtitle("Soil cover variables (numeric)") +
+  facet_wrap(~key, scales = "free_y", ncol = 4)
+```
+
+### Species variables
+
+```{r read_in_species}
+
+vascular_vars <- c(47:96)
+bryo_vars <- c(102:112)
+lichen_vars <- c(116:121)
+species_vars <- c(vascular_vars) # only vascular for now, code for others not clear
+
+otemma_species <- otemma %>% 
+  slice(species_vars) %>% # multiple data
+  t() %>% # transpose
+  as_tibble() # to df
+
+otemma_species <- otemma_species %>% 
+  slice(-1:-2) %>% # remove 2 fist rows as they have the names
+  set_names(otemma_species[1,]) %>% # rename the columns
+  slice(1:100)
+
+# Species can be treated before joining for easiness
+otemma_species <- otemma_species %>%
+  # We'll be using "Dominance Numérique 1", but there can be many possibilities
+  mutate_all(~ case_when(
+                            is.na(.) ~ "0",
+                            . == "r" ~ "0.1",
+                            . == "+" ~ "0.5",
+                            . == "1" ~ "1",
+                            . == "2a" ~ "2",
+                            . == "2b" ~ "2.5"
+                          )
+                        ) %>% 
+  mutate_all(as.numeric) %>% 
+  slice(1:nrow(.))
+```
+
+```{r glimpse}
+otemma_species %>% glimpse()
+```
+
+```{r}
+#| echo: false
+otemma_species %>%
+  select_if(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(y = value)) +
+  geom_boxplot(position = position_dodge(0.8)) +
+  geom_boxplot() +
+  # xlab("Variable") +
+  # ylab("Value") +
+  ggtitle("Species variables") +
+  facet_wrap(~key, scales = "free_y", ncol = 10)
+```
+
+## Remove rows
+
+```{r}
+#| echo: false
+
+otemma_geo <- otemma_geo %>% slice(rows_del)
+otemma_labo <- otemma_labo %>% slice(rows_del)
+otemma_soil <- otemma_soil %>% slice(rows_del)
+otemma_species <- otemma_species %>% slice(rows_del)
+```
