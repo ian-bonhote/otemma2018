@@ -20,84 +20,45 @@ library(stringr)
 library(corrplot)
 library(vegan)
 library(labdsv)
+library(cluster)
+library(gclus)
 ```
 
 ```{r}
-#| echo: false
-#| output: false
 
 # Load datasets
 load(file='otemma.Rdata')
 
 ```
 
-## Geospatial data
-
-```{r}
-#| echo: false
-
-# Clean unwanted variables and NAs
-otemma_geo <- otemma_geo %>% select(-orient_deg) # remove orientation because too many NAs
-otemma_geo <- otemma_geo[complete.cases(otemma_geo),]
-
-# Show distributions
-otemma_geo %>% 
-  gather() %>% 
-  ggplot(aes(y = value)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_boxplot() +
-  # xlab("Variable") +
-  # ylab("Value") +
-  ggtitle("Geospatial variables") +
-  facet_wrap(~key, scales = "free_y", ncol = 4)
-
-# PCA
-geo.pca <- rda(otemma_geo, scale=TRUE)
-summary(geo.pca, scaling=1)
-biplot(geo.pca, scaling=1, type='t')
-screeplot(geo.pca,col="bisque", bstick=TRUE)
-```
-
-## Labo data
-
-```{r}
-#| echo: false
-
-# Clean unwanted variables and NAs
-otemma_labo <- otemma_labo[complete.cases(otemma_labo),]
-otemma_labo <- otemma_labo %>% select(-nitrogen) # remove nitrogen because always 0
-
-# Show distributions
-otemma_labo %>% 
-  gather() %>% 
-  ggplot(aes(y = value)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_boxplot() +
-  # xlab("Variable") +
-  # ylab("Value") +
-  ggtitle("Laboratory variables") +
-  facet_wrap(~key, scales = "free_y", ncol = 4)
-
-# PCA
-labo.pca <- rda(otemma_labo, scale=TRUE)
-summary(labo.pca, scaling=1)
-biplot(labo.pca, scaling=1, type='t')
-screeplot(labo.pca,col="bisque", bstick=TRUE)
-```
-
 ## Environmental data (geospatial and labo)
 
 ```{r}
-#| echo: false
 
 # Clean unwanted variables and NAs
-env <- cbind(otemma_geo, otemma_labo)
+env <- cbind(otemma_geo, otemma_labo) # combine geospatial and labo variables
 env <- env %>% select(-nitrogen) # remove nitrogen because always 0
 env <- env %>% select(-orient_deg) # remove orientation because too many NAs
-env <- env[complete.cases(env),]
-row_ids <- as.numeric(rownames(env))
+env <- env[complete.cases(env),] # remove sites with NAs
+row_ids <- as.numeric(rownames(env)) # sites kept after processing
 
-# Select only meaningfull variables
+# Box plots
+env %>% 
+  gather() %>% 
+  ggplot(aes(y = value)) +
+  geom_boxplot(position = position_dodge(0.8)) +
+  geom_boxplot() +
+  # xlab("Variable") +
+  # ylab("Value") +
+  ggtitle("Environmental variables") +
+  facet_wrap(~key, scales = "free_y", ncol = 4)
+
+# Correlation, before selecting variables
+env.cor <- cor(env)
+col<-colorRampPalette(c("white","yellow","red","blue"))
+corrplot(env.cor, method="color",col=col(100),diag=FALSE, main='Correlation (before)')
+
+# Selecting only meaningfull variables (based on correlation)
 env_vars <- c(
   'altitude',
   'x',
@@ -117,42 +78,27 @@ env_vars <- c(
 )
 env <- env[,env_vars]
 
-# Correlation
+# Correlation, after selecting variables
 env.cor <- cor(env)
-col<-colorRampPalette(c("white","yellow","red","blue"))
-corrplot(env.cor, method="color",col=col(100),diag=FALSE)
-
-# PCA
-env.pca <- rda(env, scale=TRUE)
-summary(env.pca, scaling=1)
-biplot(env.pca, scaling=1, type='t')
-screeplot(env.pca,col="bisque", bstick=TRUE)
+corrplot(env.cor, method="color",col=col(100),diag=FALSE, main='Correlation (after)')
 
 ```
 
 ## Vegetation data
 
 ```{r}
-#| echo: false
-#| output: false
 
-# Eliminate rows that were removed in the env dataset
+# Eliminate rows that were removed in the 'env' dataset
 veg <- otemma_species[row_ids,]
 
 # Eliminate rows with no vegetation observed
 veg <- veg[-4,]
 env <- env[-4,]
 
-# Possible transformation
+# Possible transformations
 veg_code.orig <-    c('r',   '+',  '1',  '2a', '2b',  '3',   '4',    '5')
 veg_code.meancov <- c( 0.05,  0.5,  3,    10,   20,    37.5,  62.5,   87.5)
 veg_code.numdom <-  c( 0.1,   0.5,  1,    2,    2.5,   3,     4,      5)
-
-```
-
-```{r}
-#| echo: false
-#| output: false
 
 # Transformation to mean coverage
 veg <- abundtrans(veg, veg_code.orig, veg_code.meancov)
@@ -161,42 +107,81 @@ veg[is.na(veg)] <- 0 # replace NAs by 0
 # Hellinger transformation
 veg.hel <- decostand(veg, 'hell')
 
+# Remove species not present
+veg.hel <- veg.hel %>% select(where(~ any(. != 0)))
+
+```
+
+### Clustering
+
+```{r}
+
+# Euclidian distance
+veg.dist <- vegdist(veg.hel, method='euc')
+col<-colorRampPalette(c("white","yellow","red","blue"))
+corrplot(as.matrix(veg.dist), method="color", col=col(100), is.corr=FALSE)
+
+# Dendogram
+veg.dendro <- hclust(veg.dist, method='ward.D2')
+plot(veg.dendro, hang=-1)
+
+# Clusters
+n_clust <- 3
+veg.group <- cutree(veg.dendro, k=n_clust)
+veg.sil <- silhouette(veg.group, veg.dist)
+rownames(veg.sil) <- row.names(veg.group)
+plot(veg.sil, cex.names=0.8, col=2:(n_clust+1))
+
+# Dendogram with clusters
+veg.dendro_clust <- reorder.hclust(veg.dendro, veg.dist)
+plot(veg.dendro_clust, hang=-1, sub='')
+rect.hclust(veg.dendro_clust, border=2:4, k=n_clust)
+
+# Characteristic species
+veg.iva <- indval(veg.hel, veg.group)
+veg.freq <- apply(veg.hel>0, 2, sum)
+veg.iva$maxcls
+veg.iva$indcls
+veg.iva$pval
+veg.freq
+
+veg.iva_tab <- data.frame(
+  c('max.gr', veg.iva$maxcls),
+  c('ind.gr', veg.iva$indcls),
+  c('pval', veg.iva$pval),
+  c('freq', veg.freq)
+)
+names(veg.iva_tab) <- veg.iva_tab[1,]
+veg.iva_tab <- veg.iva_tab[-1,]
+
+```
+
+### Constrained ordination (RDA)
+
+```{r}
+
 # RDA
 veg.rda <- rda(veg.hel~., env)
 summary(veg.rda)
 
-veg.rda.r2 <- RsquareAdj(veg.rda)$r.squared
+# RDA plot with clusters
+k <- length(levels(factor(veg.group)))
+plot(veg.rda, display='sites', type='none', scaling=1, choices=c(1,2), main = "Triplot RDA veg.hel ~ env")
+points(veg.rda, cex=1.5, col=1+c(1:k)[veg.group], pch=14+c(1:k)[veg.group], choices=c(1, 2), scaling=1)
+text(veg.rda, "sites", pos=4, cex=1.2, choices=c(1, 2), scaling=1)
+text(veg.rda, "species", cex=0.8, col="red", choices=c(1, 2), scaling=1)
+text(veg.rda, "bp", cex=0.8, col="blue", choices=c(1, 2), scaling=1)
+
+# Quality measures
+veg.rda.r2 <- RsquareAdj(veg.rda)$r.squared # r squared
 veg.rda.r2adj <- RsquareAdj(veg.rda)$adj.r.squared
 
-plot(veg.rda, display = c("sp", "lc", "cn"), scaling=2, main = "Triplot RDA veg.hel ~ env")
-screeplot(veg.rda, col="bisque")
+screeplot(veg.rda, col="bisque") # variance explained by axis
 
-anova(veg.rda, permutations = how(nperm = 999)) # test of RDA result
-anova(veg.rda, by = "axis", permutations = how(nperm = 999)) # test of all canonical axes
+anova(veg.rda, by = "axis", permutations = how(nperm = 999)) # permutation test
 
-vif.cca(veg.rda)
+vif.cca(veg.rda) # vif test
 
-```
-
-```{r}
-#| echo: false
-#| output: false
-
-# Transformation to numerical dominance
-veg <- abundtrans(veg, veg_code.orig, veg_code.numdom)
-veg[is.na(veg)] <- 0 # replace NAs by 0
-
-# CCA
-veg.cca <- cca(veg~., env)
-
-veg.cca.r2 <- RsquareAdj(veg.cca)$r.squared
-veg.cca.r2adj <- RsquareAdj(veg.cca)$adj.r.squared
-
-plot(veg.cca, display = c("sp", "lc", "cn"), scaling=2, main="Triplot CCA veg ~ env")
-screeplot(veg.cca, col="bisque")
-
-anova(veg.cca, by = "axis", permutations=how(nperm = 999)) # test of all canonical axes
-
-vif.cca(veg.cca)
 
 ```
+
