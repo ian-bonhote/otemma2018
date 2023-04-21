@@ -48,8 +48,8 @@ env %>%
   ggplot(aes(y = value)) +
   geom_boxplot(position = position_dodge(0.8)) +
   geom_boxplot() +
-  # xlab("Variable") +
-  # ylab("Value") +
+  xlab('') +
+  ylab('') +
   ggtitle("Environmental variables") +
   facet_wrap(~key, scales = "free_y", ncol = 4)
 
@@ -61,16 +61,16 @@ corrplot(env.cor, method="color",col=col(100),diag=FALSE, main='Correlation (bef
 # Selecting only meaningfull variables (based on correlation)
 env_vars <- c(
   'altitude',
-  'x',
+#  'x',
 #  'y',
-  'slope',
+#  'slope',
   'dist_main_river',
   'dist_close_river',
   'carbon',
-  'hydrogen',
-  'mass_block',
+#  'hydrogen',
+#  'mass_block',
   'mass_coarse',
-  'mass_medium',
+#  'mass_medium',
 #  'mass_fine',
   'granulo_sand'
 #  'granulo_silt',
@@ -127,6 +127,7 @@ plot(veg.dendro, hang=-1)
 
 # Clusters
 n_clust <- 3
+col_clusters <- c('red', 'blue', 'green')
 veg.group <- cutree(veg.dendro, k=n_clust)
 veg.sil <- silhouette(veg.group, veg.dist)
 rownames(veg.sil) <- row.names(veg.group)
@@ -135,7 +136,7 @@ plot(veg.sil, cex.names=0.8, col=2:(n_clust+1))
 # Dendogram with clusters
 veg.dendro_clust <- reorder.hclust(veg.dendro, veg.dist)
 plot(veg.dendro_clust, hang=-1, sub='')
-rect.hclust(veg.dendro_clust, border=2:4, k=n_clust)
+rect.hclust(veg.dendro_clust, border=1+c(1:n_clust), k=n_clust)
 
 # Characteristic species
 veg.iva <- indval(veg.hel, veg.group)
@@ -153,6 +154,8 @@ veg.iva_tab <- data.frame(
 )
 names(veg.iva_tab) <- veg.iva_tab[1,]
 veg.iva_tab <- veg.iva_tab[-1,]
+write.table(veg.iva_tab, file='veg_iva.txt', col.names=TRUE, row.names=TRUE, sep = "\t")
+
 
 ```
 
@@ -167,7 +170,7 @@ summary(veg.rda)
 # RDA plot with clusters
 k <- length(levels(factor(veg.group)))
 plot(veg.rda, display='sites', type='none', scaling=1, choices=c(1,2), main = "Triplot RDA veg.hel ~ env")
-points(veg.rda, cex=1.5, col=1+c(1:k)[veg.group], pch=14+c(1:k)[veg.group], choices=c(1, 2), scaling=1)
+points(veg.rda, cex=1.5, col=c(3,2,4)[veg.group], pch=14+c(1:k)[veg.group], choices=c(1, 2), scaling=1)
 text(veg.rda, "sites", pos=4, cex=1.2, choices=c(1, 2), scaling=1)
 text(veg.rda, "species", cex=0.8, col="red", choices=c(1, 2), scaling=1)
 text(veg.rda, "bp", cex=0.8, col="blue", choices=c(1, 2), scaling=1)
@@ -182,6 +185,48 @@ anova(veg.rda, by = "axis", permutations = how(nperm = 999)) # permutation test
 
 vif.cca(veg.rda) # vif test
 
-
 ```
 
+
+### Boxplots
+
+```{r}
+
+otemma <- cbind(env, veg)
+otemma$group <- factor(veg.group)
+
+# Granulometry
+ggplot(otemma, aes(x=group,y=granulo_sand, fill=group)) +
+  theme(text=element_text(size=21)) +
+  xlab('Cluster') +
+  ylab('Granulometry Sand [%]') +
+  geom_boxplot()
+
+ggplot(otemma, aes(x=group,y=dist_close_river, fill=group)) + 
+  theme(text=element_text(size=21)) +
+  xlab('Cluster') +
+  ylab('Distance to river [m]') +
+  geom_boxplot()
+
+ggplot(otemma, aes(x=group,y=altitude, fill=group)) + 
+  theme(text=element_text(size=21)) +
+  xlab('Cluster') +
+  ylab('Altitude [m]') +
+  geom_boxplot()
+
+ggplot(otemma, aes(x=group,y=carbon, fill=group)) + 
+  theme(text=element_text(size=21)) +
+  xlab('Cluster') +
+  ylab('Carbon content [%]') +
+  geom_boxplot()
+
+otemma_group1 <- otemma[otemma$group==1]
+otemma_group2 <- otemma[otemma$group==2]
+otemma_group3 <- otemma[otemma$group==3]
+
+otemma.aov <- aov(granulo_sand ~ group, data=otemma)
+summary(otemma.aov)
+
+otemma.test <- t.test(otemma_group1$granulo_sand, otemma_group2$granulo_sand)
+
+```
