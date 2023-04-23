@@ -293,7 +293,7 @@ model %>% summary() # R2 = 0.26 pvalue = 0.01
 model <- lm(richness ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma)
 model %>% summary() # R2 = 0.44 pvalue = 0.0002
 
-anova(model, test = "Chisq")
+anova(model, test = "Chisq") #
 
 ```
 
@@ -302,3 +302,11 @@ The null hypothesis in this case is that there is no relationship between the pr
 In this ANOVA table, we can see that four of the six predictor variables have a significant effect on the response variable: "dist_main_river", "dist_close_river", "carbon", and "mass_coarse". These variables have p-values less than 0.05, which means we can reject the null hypothesis for these variables.
 
 On the other hand, the remaining two predictor variables, "granulo_sand" and "altitude", do not have a significant effect on the response variable. This means we cannot reject the null hypothesis for these variables.
+
+### PERMANOVA
+
+We use here `adonis()` function from `vegan` package to compute the permanova, having as response variable all the vegetation indexes and the groups. The predictors which had Pr \< 0.05 (that therefore explain all the prediction variables) were `dist_main_river`, `dist_close_river` and `carbon` .
+
+```{r}
+vegan::adonis(richness + entropy + diversity + group ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma %>% mutate(group = as.numeric(group)))
+```
