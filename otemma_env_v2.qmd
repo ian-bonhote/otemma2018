@@ -260,7 +260,7 @@ model <- lm(richness ~ granulo_sand + altitude + dist_main_river + dist_close_ri
 model %>% summary() # R2 = 0.44 pvalue = 0.0002
 
 
-## Diversity
+## Entropy
 entropy <- otemma %>% 
   select(7:ncol(.)-1, -group) %>% 
   mutate_all(~ case_when(
@@ -289,7 +289,7 @@ model %>% summary() # R2 = 0.26 pvalue = 0.01
 
 ## Use richness as it was the best model
 
-```{r}
+```{r anova}
 model <- lm(richness ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma)
 model %>% summary() # R2 = 0.44 pvalue = 0.0002
 
@@ -307,6 +307,6 @@ On the other hand, the remaining two predictor variables, "granulo_sand" and "al
 
 We use here `adonis()` function from `vegan` package to compute the permanova, having as response variable all the vegetation indexes and the groups. The predictors which had Pr \< 0.05 (that therefore explain all the prediction variables) were `dist_main_river`, `dist_close_river` and `carbon` .
 
-```{r}
+```{r permanova}
 vegan::adonis(richness + entropy + diversity + group ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma %>% mutate(group = as.numeric(group)))
 ```
