@@ -224,9 +224,81 @@ otemma_group1 <- otemma[otemma$group==1]
 otemma_group2 <- otemma[otemma$group==2]
 otemma_group3 <- otemma[otemma$group==3]
 
+
 otemma.aov <- aov(granulo_sand ~ group, data=otemma)
 summary(otemma.aov)
 
 otemma.test <- t.test(otemma_group1$granulo_sand, otemma_group2$granulo_sand)
 
 ```
+
+```{r}
+model <- lm(group ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma %>% mutate(group = as.numeric(group)))
+   
+model %>% summary() # Adjusted R-squared:  0.07578 
+
+
+# Vegetation Index 
+## Richness
+
+richness <- otemma %>% 
+  select(7:ncol(.)-1) %>% 
+  mutate_all(~ case_when(
+                            is.na(.) ~ "0",
+                            . == "r" ~ "0.1",
+                            . == "+" ~ "0.5",
+                            . == "1" ~ "1",
+                            . == "2a" ~ "2",
+                            . == "2b" ~ "2.5"
+                          )
+                        ) %>% 
+  mutate_all(as.numeric) %>% 
+  slice(1:nrow(.)) %>% rowSums(na.rm = T)
+
+otemma$richness <- richness
+model <- lm(richness ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma)
+model %>% summary() # R2 = 0.44 pvalue = 0.0002
+
+
+## Diversity
+entropy <- otemma %>% 
+  select(7:ncol(.)-1, -group) %>% 
+  mutate_all(~ case_when(
+                            is.na(.) ~ "0",
+                            . == "r" ~ "0.1",
+                            . == "+" ~ "0.5",
+                            . == "1" ~ "1",
+                            . == "2a" ~ "2",
+                            . == "2b" ~ "2.5"
+                          )
+                        ) %>% 
+  mutate_all(as.numeric) %>% 
+  mutate_all(~ifelse(is.na(.), 0, .)) %>% 
+  slice(1:nrow(.)) %>%
+  diversity()
+
+otemma$entropy <- entropy
+model <- lm(entropy ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma)
+model %>% summary() # R2 = 0.228 pvalue = 0.02
+
+## Shannon Diversity
+otemma$diversity <- otemma$entropy %>% exp()
+model <- lm(diversity ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma)
+model %>% summary() # R2 = 0.26 pvalue = 0.01
+```
+
+## Use richness as it was the best model
+
+```{r}
+model <- lm(richness ~ granulo_sand + altitude + dist_main_river + dist_close_river + carbon + mass_coarse, data = otemma)
+model %>% summary() # R2 = 0.44 pvalue = 0.0002
+
+anova(model, test = "Chisq")
+
+```
+
+The null hypothesis in this case is that there is no relationship between the predictor variables and the response variable. Therefore, a low p-value (e.g., \< 0.05) indicates that we can reject the null hypothesis and conclude that the predictor variable has a significant effect on the response variable.
+
+In this ANOVA table, we can see that four of the six predictor variables have a significant effect on the response variable: "dist_main_river", "dist_close_river", "carbon", and "mass_coarse". These variables have p-values less than 0.05, which means we can reject the null hypothesis for these variables.
+
+On the other hand, the remaining two predictor variables, "granulo_sand" and "altitude", do not have a significant effect on the response variable. This means we cannot reject the null hypothesis for these variables.
